@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drowsiness Detection</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(to right, #e0f7fa, #fff);
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        h1 {
+            color: #00796b;
+        }
+        #videoFeed {
+            width: 100%;
+            max-width: 600px;
+            border: 4px solid #00796b;
+            border-radius: 10px;
+            margin: 20px auto;
+            display: block;
+        }
+        .button {
+            display: inline-block;
+            background-color: #d32f2f;
+            color: white;
+            text-decoration: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 6px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        .button:hover {
+            background-color: #b71c1c;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Drowsiness Detection</h1>
+        <img id="videoFeed" src="{{ url_for('video_feed') }}">
+        <br>
+        <a href="/" class="button">Stop Detection</a>
+    </div>
+</body>
+</html>
