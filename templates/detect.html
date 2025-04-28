@@ -49,36 +49,61 @@
 <body>
     <div class="container">
         <h1>Real-time Drowsiness Detection</h1>
-        <img id="videoFeed" src="{{ url_for('video_feed') }}">
+        <video id="videoFeed" autoplay playsinline></video>
         <br>
+        <audio id="alarmSound" src="{{ url_for('static', filename='alert.mp3') }}"></audio>
         <a href="/" class="button">Stop Detection</a>
     </div>
 
-    <audio id="alarm-sound" src="{{ url_for('static', filename='alarm.mp3') }}" preload="auto"></audio>
-
     <script>
-        const alarmSound = document.getElementById('alarm-sound');
+        const video = document.getElementById('videoFeed');
+        const alarm = document.getElementById('alarmSound');
 
-        function checkDrowsyStatus() {
-            fetch('/drowsy_status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.drowsy) {
-                        if (alarmSound.paused) {
-                            alarmSound.play();
-                        }
-                    } else {
-                        if (!alarmSound.paused) {
-                            alarmSound.pause();
-                            alarmSound.currentTime = 0;
-                        }
-                    }
+        let streaming = false;
+        let canvas = document.createElement('canvas');
+
+        // Access user's webcam
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    streaming = true;
+                    detectDrowsiness();
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(function(error) {
+                    console.error("Camera access error:", error);
+                    alert("Please allow camera access.");
+                });
         }
 
-        // Check drowsy status every 2 seconds
-        setInterval(checkDrowsyStatus, 2000);
+        function detectDrowsiness() {
+            if (!streaming) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+
+            setInterval(() => {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imgData = canvas.toDataURL('image/jpeg');
+
+                fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imgData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.label);
+                    if (data.label === "Drowsy") {
+                        alarm.play();
+                    }
+                })
+                .catch(error => {
+                    console.error('Prediction error:', error);
+                });
+            }, 1500); // Send frame every 1.5 seconds
+        }
     </script>
 </body>
 </html>
