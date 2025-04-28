@@ -53,5 +53,32 @@
         <br>
         <a href="/" class="button">Stop Detection</a>
     </div>
+
+    <audio id="alarm-sound" src="{{ url_for('static', filename='alarm.mp3') }}" preload="auto"></audio>
+
+    <script>
+        const alarmSound = document.getElementById('alarm-sound');
+
+        function checkDrowsyStatus() {
+            fetch('/drowsy_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.drowsy) {
+                        if (alarmSound.paused) {
+                            alarmSound.play();
+                        }
+                    } else {
+                        if (!alarmSound.paused) {
+                            alarmSound.pause();
+                            alarmSound.currentTime = 0;
+                        }
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Check drowsy status every 2 seconds
+        setInterval(checkDrowsyStatus, 2000);
+    </script>
 </body>
 </html>

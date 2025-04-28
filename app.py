@@ -1,18 +1,13 @@
-from flask import Flask, render_template, Response, redirect, url_for
+from flask import Flask, render_template, Response, redirect, url_for, jsonify
 import cv2
 import dlib
 from scipy.spatial import distance
 from imutils import face_utils
 import imutils
-from pygame import mixer
 import time
 from sklearn.metrics import classification_report, accuracy_score
 
 app = Flask(__name__)
-
-# Initialize sound mixer
-mixer.init()
-mixer.music.load("alert.mp3")
 
 predictions = []
 
@@ -26,7 +21,6 @@ class VideoCamera(object):
         self.thresh = 0.25
         self.frame_check = 20
         self.flag = 0
-        self.alert_active = False
         self.last_alert_time = 0
 
     def __del__(self):
@@ -69,17 +63,12 @@ class VideoCamera(object):
                 if self.flag >= self.frame_check:
                     current_time = time.time()
                     if current_time - self.last_alert_time > 5:
-                        self.alert_active = True
                         self.last_alert_time = current_time
-                        mixer.music.play()
                     cv2.putText(frame, "DROWSINESS ALERT!", (10, 30),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                    cv2.putText(frame, "DROWSINESS ALERT!", (10, frame.shape[0] - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                     label = "Drowsy"
             else:
                 self.flag = 0
-                self.alert_active = False
                 label = "Alert"
 
         predictions.append(label)
@@ -112,6 +101,13 @@ def video_feed():
 def stop_detection():
     calculate_accuracy(predictions)
     return redirect(url_for('index'))
+
+@app.route('/drowsy_status')
+def drowsy_status():
+    if predictions and predictions[-1] == "Drowsy":
+        return jsonify({"drowsy": True})
+    else:
+        return jsonify({"drowsy": False})
 
 def calculate_accuracy(predictions):
     if not predictions:
