@@ -21,6 +21,13 @@
         h1 {
             color: #00796b;
         }
+        #status {
+            font-size: 24px;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            color: #d32f2f;
+            font-weight: bold;
+        }
         #videoFeed {
             width: 100%;
             max-width: 600px;
@@ -49,6 +56,7 @@
 <body>
     <div class="container">
         <h1>Real-time Drowsiness Detection</h1>
+        <div id="status">Status: Detecting...</div>
         <video id="videoFeed" autoplay playsinline></video>
         <br>
         <audio id="alarmSound" src="{{ url_for('static', filename='alert.mp3') }}"></audio>
@@ -58,6 +66,7 @@
     <script>
         const video = document.getElementById('videoFeed');
         const alarm = document.getElementById('alarmSound');
+        const statusDiv = document.getElementById('status');
 
         let streaming = false;
         let canvas = document.createElement('canvas');
@@ -95,12 +104,20 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log(data.label);
+                    statusDiv.innerHTML = `Status: ${data.label}`;
+
                     if (data.label === "Drowsy") {
-                        alarm.play();
+                        if (alarm.paused) {
+                            alarm.play();
+                        }
+                    } else {
+                        alarm.pause();
+                        alarm.currentTime = 0;
                     }
                 })
                 .catch(error => {
                     console.error('Prediction error:', error);
+                    statusDiv.innerHTML = `Status: Error`;
                 });
             }, 1500); // Send frame every 1.5 seconds
         }
