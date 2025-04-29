@@ -1,75 +1,115 @@
-<!-- templates/detect.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Drowsiness Detection</title>
-  <style>
-    video, canvas {
-      display: block;
-      margin: 0 auto;
-    }
-    #status {
-      text-align: center;
-      font-size: 24px;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-  </style>
+    <title>Drowsiness Detection</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        #video {
+            width: 640px;
+            max-width: 100%;
+            border: 2px solid #333;
+            border-radius: 8px;
+            transform: scaleX(-1); /* Mirror effect */
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .alert {
+            color: green;
+        }
+        .drowsy {
+            color: red;
+        }
+    </style>
 </head>
 <body>
-  <h2 style="text-align:center;">Real-Time Drowsiness Detection</h2>
-  <video id="video" width="640" height="480" autoplay muted></video>
-  <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
-  <div id="status">Loading...</div>
+    <h1>Drowsiness Detection</h1>
+    <video id="video" autoplay playsinline></video>
+    <div id="status" class="alert">Status: Ready</div>
+    <audio id="alarm" loop>
+        <source src="{{ url_for('static', filename='alarm.mp3') }}" type="audio/mpeg">
+    </audio>
 
-  <!-- Audio alert -->
-  <audio id="alertSound">
-    <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
-  </audio>
+    <script>
+        const video = document.getElementById('video');
+        const statusDiv = document.getElementById('status');
+        const alarm = document.getElementById('alarm');
+        let isDrowsy = false;
 
-  <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const statusDiv = document.getElementById('status');
-    const alertSound = document.getElementById('alertSound');
-    const context = canvas.getContext('2d');
-
-    // Access webcam
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then((stream) => {
-        video.srcObject = stream;
-      })
-      .catch((err) => {
-        console.error("Camera access error: ", err);
-        statusDiv.textContent = "Unable to access webcam.";
-      });
-
-    function sendFrame() {
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imgData = canvas.toDataURL('image/jpeg');
-
-      fetch('/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imgData })
-      })
-        .then(response => response.json())
-        .then(data => {
-          const label = data.label || "Unknown";
-          statusDiv.textContent = label;
-
-          if (label === "Drowsy") {
-            alertSound.play();
-          }
+        // Access camera
+        navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 640 }, 
+                height: { ideal: 480 },
+                facingMode: 'user' 
+            } 
+        })
+        .then(stream => {
+            video.srcObject = stream;
+            startDetection();
         })
         .catch(err => {
-          console.error("Prediction error:", err);
-          statusDiv.textContent = "Error";
+            statusDiv.textContent = "Error: Could not access camera";
+            console.error("Camera error:", err);
         });
-    }
 
-    setInterval(sendFrame, 300); // Adjust frame interval as needed
-  </script>
+        function startDetection() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            setInterval(() => {
+                if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+                
+                // Capture frame
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/jpeg');
+                
+                // Send to server for detection
+                fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.drowsy) {
+                        if (!isDrowsy) {
+                            statusDiv.textContent = "Status: DROWSY!";
+                            statusDiv.className = "drowsy";
+                            alarm.play().catch(e => console.log("Audio error:", e));
+                            isDrowsy = true;
+                        }
+                    } else {
+                        if (isDrowsy) {
+                            statusDiv.textContent = "Status: Alert";
+                            statusDiv.className = "alert";
+                            alarm.pause();
+                            alarm.currentTime = 0;
+                            isDrowsy = false;
+                        }
+                    }
+                })
+                .catch(err => console.log("Detection error:", err));
+            }, 300); // Check every 300ms
+        }
+
+        // Clean up on exit
+        window.addEventListener('beforeunload', () => {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
 </body>
 </html>
