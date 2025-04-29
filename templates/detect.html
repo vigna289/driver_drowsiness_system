@@ -1,258 +1,257 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Drowsiness Detection</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Poppins', sans-serif;
-            text-align: center;
             margin: 0;
-            padding: 20px;
-            background: linear-gradient(to right, #e0f7fa, #fff);
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         }
         .container {
-            max-width: 800px;
-            margin: 0 auto;
             background: white;
-            padding: 30px 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 90%;
+            max-width: 800px;
+            text-align: center;
         }
         h1 {
-            color: #00796b;
-            margin-bottom: 5px;
-        }
-        .subtitle {
-            color: #555;
+            color: #2c3e50;
             margin-bottom: 20px;
+        }
+        #video-container {
+            position: relative;
+            margin: 20px auto;
+            width: 640px;
+            max-width: 100%;
+        }
+        #video {
+            width: 100%;
+            border-radius: 8px;
+            transform: scaleX(-1);
+            display: block;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
         }
         #status {
             font-size: 24px;
-            margin-top: 15px;
-            margin-bottom: 10px;
             font-weight: bold;
-            transition: color 0.3s;
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
         }
         .alert {
-            color: #4CAF50;
+            color: #27ae60;
+            background-color: rgba(39, 174, 96, 0.1);
         }
-        .warning {
-            color: #FFC107;
+        .drowsy {
+            color: #e74c3c;
+            background-color: rgba(231, 76, 60, 0.1);
+            animation: pulse 1s infinite;
         }
-        .danger {
-            color: #F44336;
-            animation: blink 1s infinite;
-        }
-        @keyframes blink {
+        @keyframes pulse {
             0% { opacity: 1; }
-            50% { opacity: 0.5; }
+            50% { opacity: 0.7; }
             100% { opacity: 1; }
-        }
-        #videoFeed {
-            width: 100%;
-            max-width: 600px;
-            border: 4px solid #00796b;
-            border-radius: 10px;
-            margin: 20px auto;
-            display: block;
-            transform: scaleX(-1); /* Mirror effect */
-        }
-        .button {
-            display: inline-block;
-            background-color: #d32f2f;
-            color: white;
-            text-decoration: none;
-            padding: 12px 25px;
-            font-size: 16px;
-            border-radius: 6px;
-            margin-top: 20px;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }
-        .button:hover {
-            background-color: #b71c1c;
-            transform: scale(1.05);
         }
         .stats {
             display: flex;
             justify-content: space-around;
             margin: 20px 0;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 8px;
         }
-        .stat-box {
-            text-align: center;
+        .stat {
+            padding: 10px;
+            border-radius: 5px;
+            background: #f8f9fa;
         }
         .stat-value {
-            font-size: 20px;
             font-weight: bold;
-            color: #00796b;
+            font-size: 18px;
         }
         .stat-label {
             font-size: 14px;
-            color: #666;
+            color: #7f8c8d;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Real-time Drowsiness Detection</h1>
-        <p class="subtitle">Using facial landmarks and eye aspect ratio analysis</p>
         
-        <div id="status" class="alert">Status: Initializing...</div>
+        <div id="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div id="status" class="alert">Initializing...</div>
         
         <div class="stats">
-            <div class="stat-box">
-                <div class="stat-value" id="earValue">0.00</div>
+            <div class="stat">
+                <div class="stat-value" id="ear-value">0.00</div>
                 <div class="stat-label">Eye Aspect Ratio</div>
             </div>
-            <div class="stat-box">
-                <div class="stat-value" id="marValue">0.00</div>
+            <div class="stat">
+                <div class="stat-value" id="mar-value">0.00</div>
                 <div class="stat-label">Mouth Aspect Ratio</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-value" id="fpsValue">0</div>
-                <div class="stat-label">FPS</div>
             </div>
         </div>
         
-        <video id="videoFeed" autoplay playsinline></video>
-        <audio id="alarmSound" loop>
-            <source src="{{ url_for('static', filename='alert.mp3') }}" type="audio/mpeg">
-        </audio>
+        <button id="stop-btn">Stop Detection</button>
         
-        <button class="button" onclick="window.location.href='/'">Stop Detection</button>
+        <audio id="alarm" loop>
+            <source src="{{ url_for('static', filename='alarm.mp3') }}" type="audio/mpeg">
+        </audio>
     </div>
 
     <script>
-        const video = document.getElementById('videoFeed');
-        const alarm = document.getElementById('alarmSound');
+        // DOM elements
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const statusDiv = document.getElementById('status');
-        const earValue = document.getElementById('earValue');
-        const marValue = document.getElementById('marValue');
-        const fpsValue = document.getElementById('fpsValue');
-
-        let streaming = false;
-        let canvas = document.createElement('canvas');
-        let lastUpdate = 0;
-        let frameCount = 0;
-        let lastFpsUpdate = Date.now();
-        let fps = 0;
-
-        // Check for camera support
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            statusDiv.textContent = "Error: Camera API not supported in this browser";
-            statusDiv.className = "danger";
-        } else {
-            // Access user's webcam
-            navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 },
-                    facingMode: 'user' 
-                }, 
-                audio: false 
-            })
-            .then(function(stream) {
+        const earValue = document.getElementById('ear-value');
+        const marValue = document.getElementById('mar-value');
+        const stopBtn = document.getElementById('stop-btn');
+        const alarm = document.getElementById('alarm');
+        
+        // Variables
+        let isDrowsy = false;
+        let stream = null;
+        let detectionInterval = null;
+        
+        // Start webcam
+        async function startVideo() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }, 
+                    audio: false 
+                });
                 video.srcObject = stream;
-                streaming = true;
+                
+                // Set canvas dimensions to match video
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    startDetection();
+                };
+                
                 statusDiv.textContent = "Status: Ready";
-                detectDrowsiness();
-            })
-            .catch(function(error) {
-                console.error("Camera access error:", error);
-                statusDiv.textContent = "Error: Please allow camera access";
-                statusDiv.className = "danger";
-            });
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                statusDiv.textContent = "Error: Could not access camera";
+                statusDiv.className = "drowsy";
+            }
         }
-
-        function updateStatus(label, alarmState) {
-            statusDiv.textContent = `Status: ${label}`;
+        
+        // Start detection loop
+        function startDetection() {
+            detectionInterval = setInterval(detectDrowsiness, 300); // Process every 300ms
+        }
+        
+        // Stop detection
+        function stopDetection() {
+            if (detectionInterval) clearInterval(detectionInterval);
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            video.srcObject = null;
+            statusDiv.textContent = "Detection stopped";
+            alarm.pause();
+        }
+        
+        // Process frame and detect drowsiness
+        async function detectDrowsiness() {
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
             
-            if (label.includes("Drowsy")) {
-                statusDiv.className = "danger";
-                if (alarmState && alarm.paused) {
-                    alarm.play().catch(e => console.log("Audio play failed:", e));
-                }
-            } else if (label.includes("No face")) {
-                statusDiv.className = "warning";
-                alarm.pause();
-            } else {
-                statusDiv.className = "alert";
-                alarm.pause();
-            }
-        }
-
-        function detectDrowsiness() {
-            if (!streaming) return;
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const context = canvas.getContext('2d');
-
-            function processFrame() {
-                if (!streaming) return;
-                
-                const now = Date.now();
-                frameCount++;
-                
-                // Update FPS every second
-                if (now - lastFpsUpdate >= 1000) {
-                    fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
-                    fpsValue.textContent = fps;
-                    frameCount = 0;
-                    lastFpsUpdate = now;
-                }
-                
-                // Process at ~10 FPS (every 100ms)
-                if (now - lastUpdate >= 100) {
-                    lastUpdate = now;
-                    
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                    
-                    fetch('/predict', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image: imgData })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        updateStatus(data.label, data.alarm);
-                        
-                        // Update stats (mock values - in a real app these would come from the backend)
-                        if (data.label.includes("Drowsy (Eyes Closed)")) {
-                            earValue.textContent = "0.20";
-                            marValue.textContent = "0.50";
-                        } else if (data.label.includes("Drowsy (Yawning)")) {
-                            earValue.textContent = "0.30";
-                            marValue.textContent = "25.0";
-                        } else {
-                            earValue.textContent = "0.35";
-                            marValue.textContent = "0.60";
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Prediction error:', error);
-                        statusDiv.textContent = "Status: Error";
-                        statusDiv.className = "danger";
-                    });
-                }
-                
-                requestAnimationFrame(processFrame);
-            }
+            // Draw video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            processFrame();
-        }
-
-        // Clean up when leaving the page
-        window.addEventListener('beforeunload', function() {
-            if (video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
+            // Convert canvas to base64 image
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            
+            try {
+                // Send to backend for processing
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Update UI based on detection result
+                    if (data.drowsy) {
+                        statusDiv.textContent = "DROWSY DETECTED!";
+                        statusDiv.className = "drowsy";
+                        isDrowsy = true;
+                        alarm.play().catch(e => console.log("Audio play error:", e));
+                    } else {
+                        statusDiv.textContent = "Status: Alert";
+                        statusDiv.className = "alert";
+                        isDrowsy = false;
+                        alarm.pause();
+                    }
+                    
+                    // Update stats
+                    if (data.ear) earValue.textContent = data.ear.toFixed(2);
+                    if (data.mar) marValue.textContent = data.mar.toFixed(2);
+                } else {
+                    console.error("Detection error:", data.message);
+                }
+            } catch (err) {
+                console.error("Request failed:", err);
             }
+        }
+        
+        // Event listeners
+        stopBtn.addEventListener('click', () => {
+            stopDetection();
+            window.location.href = '/';
+        });
+        
+        // Initialize
+        startVideo();
+        
+        // Clean up on page exit
+        window.addEventListener('beforeunload', () => {
+            stopDetection();
         });
     </script>
 </body>
