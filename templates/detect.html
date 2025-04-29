@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Drowsiness Detection</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -20,13 +21,33 @@
         }
         h1 {
             color: #00796b;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #555;
+            margin-bottom: 20px;
         }
         #status {
             font-size: 24px;
             margin-top: 15px;
             margin-bottom: 10px;
-            color: #d32f2f;
             font-weight: bold;
+            transition: color 0.3s;
+        }
+        .alert {
+            color: #4CAF50;
+        }
+        .warning {
+            color: #FFC107;
+        }
+        .danger {
+            color: #F44336;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
         #videoFeed {
             width: 100%;
@@ -35,6 +56,7 @@
             border-radius: 10px;
             margin: 20px auto;
             display: block;
+            transform: scaleX(-1); /* Mirror effect */
         }
         .button {
             display: inline-block;
@@ -46,43 +68,122 @@
             border-radius: 6px;
             margin-top: 20px;
             transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
         }
         .button:hover {
             background-color: #b71c1c;
             transform: scale(1.05);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .stat-box {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #00796b;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Real-time Drowsiness Detection</h1>
-        <div id="status">Status: Detecting...</div>
+        <p class="subtitle">Using facial landmarks and eye aspect ratio analysis</p>
+        
+        <div id="status" class="alert">Status: Initializing...</div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="earValue">0.00</div>
+                <div class="stat-label">Eye Aspect Ratio</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="marValue">0.00</div>
+                <div class="stat-label">Mouth Aspect Ratio</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="fpsValue">0</div>
+                <div class="stat-label">FPS</div>
+            </div>
+        </div>
+        
         <video id="videoFeed" autoplay playsinline></video>
-        <br>
-        <audio id="alarmSound" src="{{ url_for('static', filename='alert.mp3') }}"></audio>
-        <a href="/" class="button">Stop Detection</a>
+        <audio id="alarmSound" loop>
+            <source src="{{ url_for('static', filename='alert.mp3') }}" type="audio/mpeg">
+        </audio>
+        
+        <button class="button" onclick="window.location.href='/'">Stop Detection</button>
     </div>
 
     <script>
         const video = document.getElementById('videoFeed');
         const alarm = document.getElementById('alarmSound');
         const statusDiv = document.getElementById('status');
+        const earValue = document.getElementById('earValue');
+        const marValue = document.getElementById('marValue');
+        const fpsValue = document.getElementById('fpsValue');
 
         let streaming = false;
         let canvas = document.createElement('canvas');
+        let lastUpdate = 0;
+        let frameCount = 0;
+        let lastFpsUpdate = Date.now();
+        let fps = 0;
 
-        // Access user's webcam
-        if (navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(function(stream) {
-                    video.srcObject = stream;
-                    streaming = true;
-                    detectDrowsiness();
-                })
-                .catch(function(error) {
-                    console.error("Camera access error:", error);
-                    alert("Please allow camera access.");
-                });
+        // Check for camera support
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            statusDiv.textContent = "Error: Camera API not supported in this browser";
+            statusDiv.className = "danger";
+        } else {
+            // Access user's webcam
+            navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 }, 
+                    height: { ideal: 480 },
+                    facingMode: 'user' 
+                }, 
+                audio: false 
+            })
+            .then(function(stream) {
+                video.srcObject = stream;
+                streaming = true;
+                statusDiv.textContent = "Status: Ready";
+                detectDrowsiness();
+            })
+            .catch(function(error) {
+                console.error("Camera access error:", error);
+                statusDiv.textContent = "Error: Please allow camera access";
+                statusDiv.className = "danger";
+            });
+        }
+
+        function updateStatus(label, alarmState) {
+            statusDiv.textContent = `Status: ${label}`;
+            
+            if (label.includes("Drowsy")) {
+                statusDiv.className = "danger";
+                if (alarmState && alarm.paused) {
+                    alarm.play().catch(e => console.log("Audio play failed:", e));
+                }
+            } else if (label.includes("No face")) {
+                statusDiv.className = "warning";
+                alarm.pause();
+            } else {
+                statusDiv.className = "alert";
+                alarm.pause();
+            }
         }
 
         function detectDrowsiness() {
@@ -92,35 +193,67 @@
             canvas.height = video.videoHeight;
             const context = canvas.getContext('2d');
 
-            setInterval(() => {
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imgData = canvas.toDataURL('image/jpeg');
-
-                fetch('/predict', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: imgData })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data.label);
-                    statusDiv.innerHTML = `Status: ${data.label}`;
-
-                    if (data.label === "Drowsy") {
-                        if (alarm.paused) {
-                            alarm.play();
+            function processFrame() {
+                if (!streaming) return;
+                
+                const now = Date.now();
+                frameCount++;
+                
+                // Update FPS every second
+                if (now - lastFpsUpdate >= 1000) {
+                    fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+                    fpsValue.textContent = fps;
+                    frameCount = 0;
+                    lastFpsUpdate = now;
+                }
+                
+                // Process at ~10 FPS (every 100ms)
+                if (now - lastUpdate >= 100) {
+                    lastUpdate = now;
+                    
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    fetch('/predict', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: imgData })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        updateStatus(data.label, data.alarm);
+                        
+                        // Update stats (mock values - in a real app these would come from the backend)
+                        if (data.label.includes("Drowsy (Eyes Closed)")) {
+                            earValue.textContent = "0.20";
+                            marValue.textContent = "0.50";
+                        } else if (data.label.includes("Drowsy (Yawning)")) {
+                            earValue.textContent = "0.30";
+                            marValue.textContent = "25.0";
+                        } else {
+                            earValue.textContent = "0.35";
+                            marValue.textContent = "0.60";
                         }
-                    } else {
-                        alarm.pause();
-                        alarm.currentTime = 0;
-                    }
-                })
-                .catch(error => {
-                    console.error('Prediction error:', error);
-                    statusDiv.innerHTML = `Status: Error`;
-                });
-            }, 1500); // Send frame every 1.5 seconds
+                    })
+                    .catch(error => {
+                        console.error('Prediction error:', error);
+                        statusDiv.textContent = "Status: Error";
+                        statusDiv.className = "danger";
+                    });
+                }
+                
+                requestAnimationFrame(processFrame);
+            }
+            
+            processFrame();
         }
+
+        // Clean up when leaving the page
+        window.addEventListener('beforeunload', function() {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+        });
     </script>
 </body>
 </html>
